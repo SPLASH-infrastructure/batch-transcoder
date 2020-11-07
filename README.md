@@ -23,7 +23,7 @@ researchr. Importing the metadata will work using the `metadata` command, as
 
 Sidechain imports are registered into the database directly, using a command line
 ```
-  batch_transcoder sidechain [video_file].mp4 [srt_file].srt -md [metadata].json
+  batch_transcoder sidechain [video_file].mp4 [srt_file].srt [metadata].json
 ```
 
 The metadata file will use the same format as the conference publishing JSON for conformity. Notably, however, to avoid ambiguity, the metadata must have an **additional** field:
