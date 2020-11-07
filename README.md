@@ -25,6 +25,10 @@ Sidechain imports are registered into the database directly, using a command lin
 ```
   batch_transcoder sidechain [video_file].mp4 [srt_file].srt [metadata].json
 ```
+to remove a sidechain import,
+```
+  batch_transcoder sidechain remove [metadata].json
+```
 
 The metadata file will use the same format as the conference publishing JSON for conformity. Notably, however, to avoid ambiguity, the metadata must have an **additional** field:
 the researchr `event_id` that it is to be associated with.
