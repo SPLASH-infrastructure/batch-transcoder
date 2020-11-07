@@ -23,7 +23,7 @@ researchr. Importing the metadata will work using the `metadata` command, as
 
 Sidechain imports are registered into the database directly, using a command line
 ```
-  batch_transcoder sidechain [video_file].mp4 [srt_file].srt [metadata].json
+  batch_transcoder sidechain add [video_file].mp4 [srt_file].srt [metadata].json
 ```
 to remove a sidechain import,
 ```
