@@ -59,6 +59,7 @@ If, at the end of the transcode operation, there are any transcodes with NULL tr
 | Column | Type | Description |
 | - | - | - |
 | id | INTEGER PRIMARY KEY | | 
+| transcode_id | INTEGER | |
 | title | TEXT | the title of the talk |
 | video_file | TEXT | the path to the video file to ingest | 
 | sub_file | TEXT| the path to the subtitles to ingest |
@@ -68,6 +69,7 @@ If, at the end of the transcode operation, there are any transcodes with NULL tr
 | Column | Type | Description |
 | - | - | - |
 | id | INTEGER PRIMARY KEY | | 
+| transcode_id | INTEGER | |
 | title | TEXT | the title of the talk |
 | event_id | TEXT | the researchr UUID for the event |
 | base_path | TEXT | the base path with which to output the files |
