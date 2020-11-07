@@ -66,3 +66,4 @@ If, at the end of the transcode operation, there are any transcodes with NULL tr
 | id | INTEGER PRIMARY KEY | | 
 | title | TEXT | the title of the talk |
 | event_id | TEXT | the researchr UUID for the event |
+| base_path | TEXT | the base path with which to output the files |
