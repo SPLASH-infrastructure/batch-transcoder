@@ -41,9 +41,7 @@ In normal operation, the program will loop through transcodes, checking the inpu
 in Transcodes. If the altered time is greater than `transcode_date`, or if `transcode_date` is null, then a transcode will be queued for execution. Once all transcodes have
 been identified, the transcodes are executed; upon the conclusion of each transcode, the `transcode_date` is updated.
 
-If, at the end of the transcode operation, there are any transcodes with NULL transcode_date values, then a warning is produced for each.
-
-Input and output paths are relative to the configuration fields `input_dir` and `output_dir`, respectively.
+If, at the end of the transcode operation, there are any transcodes with NULL transcode_date values, then a warning is produced for each
 
 ## Transcodes
 | Column | Type | Description |
@@ -68,10 +66,3 @@ Input and output paths are relative to the configuration fields `input_dir` and 
 | id | INTEGER PRIMARY KEY | | 
 | title | TEXT | the title of the talk |
 | event_id | TEXT | the researchr UUID for the event |
-
-## Configuration
-| Column | Type | Description |
-| - | - | - |
-| id | INTEGER PRIMARY KEY | | 
-| key | TEXT | the name of the configuration option |
-| value | TEXT | the value of the configuration option |
