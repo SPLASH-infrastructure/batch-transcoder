@@ -1,4 +1,4 @@
-using SQLite, LightXML, JSON, CSV, DataFrames
+using SQLite, LightXML, JSON, CSV, DataFrames, Dates
 
 # load the SQLite DB. eventually the name will be configurable
 db = SQLite.DB("transcode.sqlite")
@@ -188,6 +188,20 @@ function get_fps(file)
 	end
 end
 
+function normalization_firstpass(video)
+	normalize_task = `ffmpeg -y -i $video -pass 1 -af loudnorm=I=-15:LRA=9:tp=-1:print_format=json -f null -`
+	out = Pipe()
+	err = Pipe()
+	process = run(pipeline(normalize_task, stdout=out, stderr=err))
+	close(out.in)
+	close(err.in)
+	read_data = String(read(err))
+	jsondata = join(split(read_data, "\n")[end-12:end], "\n")
+	println(jsondata)
+	loudness_data = JSON.parse(jsondata)
+	return loudness_data
+end
+
 function process_outstanding_videos(db)
 	# build the workqueue
 	transcodes = DataFrame(DBInterface.execute(db, """
@@ -210,20 +224,19 @@ function process_outstanding_videos(db)
 		end
 		computed_fps = get_fps(inp_vid)
 		gop_size = floor(Int, computed_fps*2)
-		normalize_task = `ffmpeg -y -i $inp_vid -af loudnorm=I=-15:LRA=9:tp=-1:print_format=json -f null -`
-		loudness_data = JSON.parse(read(normalize_task, String))
+		loudness_data = normalization_firstpass(inp_vid)
 
 		transcode_task = `ffmpeg -y -i $inp_vid -vf scale=1920:1080 -pix_fmt yuv420p -threads 0 -vcodec libx264 -g $gop_size -sc_threshold 0 -b:v 3000k 
 								-bufsize 1216k -maxrate 6000k -preset medium -profile:v high -tune film 
 								-acodec aac -b:a 128k -ac 2 -ar 44100 
-								-af "loudnorm=I=-15:LRA=9:tp=-1:measured_I=$(loudness_data["input_i"]):measured_LRA=$(loudness_data["input_lra"]):measured_tp=$(loudness_data["input_tp"]):offset=$(loudness_data["target_offset"]),aresample=async=1:min_hard_comp=0.100000:first_pts=0" $output_video`
+								-pass 2 -af "loudnorm=I=-15:LRA=9:tp=-1:measured_I=$(loudness_data["input_i"]):measured_LRA=$(loudness_data["input_lra"]):measured_tp=$(loudness_data["input_tp"]):offset=$(loudness_data["target_offset"]),aresample=async=1:min_hard_comp=0.100000:first_pts=0" $output_video`
 		proc = run(transcode_task)
 		wait(proc)
 		if proc.exitcode != 0
 			error("Errored while processing video $inp_vid with ID $eventid")
 			continue
 		end
-		DBInterface.execute(done_stmt, (date=floor(datetime2unix(now())), oid=oid, iid=iid))
+		DBInterface.execute(done_stmt, (date=floor(datetime2unix(Dates.now())), oid=oid, iid=iid))
 	end
 end
 
