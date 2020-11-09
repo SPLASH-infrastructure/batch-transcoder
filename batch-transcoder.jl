@@ -236,7 +236,7 @@ function process_outstanding_videos(db)
 			error("Errored while processing video $inp_vid with ID $eventid")
 			continue
 		end
-		DBInterface.execute(done_stmt, (date=floor(datetime2unix(Dates.now())), oid=oid, iid=iid))
+		DBInterface.execute(done_stmt, (date=floor(Int, datetime2unix(Dates.now())), oid=oid, iid=iid))
 	end
 end
 
