@@ -205,7 +205,7 @@ function process_outstanding_videos(db)
 			continue
 		end
 		inp_mod = Base.Filesystem.mtime(inp_vid)
-		if !isnothing(transcode_date) && inp_mod <= transcode_date
+		if !ismissing(transcode_date)  && inp_mod <= transcode_date
 			continue
 		end
 		computed_fps = get_fps(inp_vid)
