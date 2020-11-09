@@ -54,6 +54,30 @@ function load_conf_pub_dir(db, dir, ingest_dir)
 	return modified
 end
 
+function load_manual_csv(db, csv)
+	data = CSV.File(csv) |> DataFrame
+	insert_ingest = SQLite.Stmt(db, "INSERT OR REPLACE INTO Ingests (title, authors, event, video_file, sub_file, metadata_file) VALUES (:title, :authors, :event, :video, :subs, :metadata)")
+	lookup_inserted = SQLite.Stmt(db, "SELECT id FROM Ingests WHERE title = :title AND authors = :authors")
+	insert_transcode = SQLite.Stmt(db, "INSERT OR IGNORE INTO Transcodes (ingest_id, output_id) VALUES (:iid, :oid)")
+	lookup_binding = SQLite.Stmt(db, "SELECT id FROM Outputs WHERE event_id = :eid")
+	for (eid, title, track, authors, video_file, sub_file, metadata_file) in eachrow(data) 
+		if isempty(strip(video_file))
+			println("event $title does not have a video file, continuing")
+			continue
+		end
+		res = DataFrame(DBInterface.execute(lookup_binding, eid))
+		if isempty(res)
+			println("Invalid event id $eid, continuing")
+			continue
+		end
+		output_id = first(res["id"])
+		DBInterface.execute(insert_ingest, (title=title, authors=authors, event=track, video=video_file, subs=sub_file, metadata=metadata_file))
+		inserted = DataFrame(DBInterface.execute(lookup_inserted, (title=title, authors=authors)))
+		ingest_id = first(res["id"])
+		DBInterface.execute(insert_transcode, (iid=ingest_id, oid=output_id))
+	end
+end
+
 function load_conf_pub(db, pub_xml, ingest_dir)
 	existsq = SQLite.Stmt(db, "SELECT 1 FROM Ingests WHERE video_file = :video AND event = :event")
 	insert = SQLite.Stmt(db, "INSERT OR IGNORE INTO Ingests (title, authors, event, video_file, sub_file, metadata_file) VALUES (:title, :authors, :event, :video, :subs, :metadata)")
@@ -215,11 +239,11 @@ function process_outstanding_videos(db)
 			Base.Filesystem.mkpath(base_path)
 		end
 		if !Base.Filesystem.ispath(inp_vid)
-			error("Missing input video $inp_vid, continuing.")
+			println("Missing input video $inp_vid, continuing.")
 			continue
 		end
 		inp_mod = Base.Filesystem.mtime(inp_vid)
-		if !ismissing(transcode_date)  && inp_mod <= transcode_date
+		if !ismissing(transcode_date) && inp_mod <= transcode_date
 			continue
 		end
 		computed_fps = get_fps(inp_vid)
@@ -233,7 +257,7 @@ function process_outstanding_videos(db)
 		proc = run(transcode_task)
 		wait(proc)
 		if proc.exitcode != 0
-			error("Errored while processing video $inp_vid with ID $eventid")
+			println("Errored while processing video $inp_vid with ID $eventid")
 			continue
 		end
 		DBInterface.execute(done_stmt, (date=floor(Int, datetime2unix(Dates.now())), oid=oid, iid=iid))
@@ -242,6 +266,74 @@ end
 
 function reset_transcodes(db)
 	DBInterface.execute(db, "UPDATE Transcodes SET transcode_date=NULL")
+end
+
+function copy_metadata(db)
+	# build the workqueue
+	transcodes = DataFrame(DBInterface.execute(db, """
+		SELECT video_file, sub_file, metadata_file, event_id, base_path, transcode_date, ingest_id, output_id from "Transcodes" 
+		INNER JOIN Ingests ON Ingests.id = Transcodes.ingest_id
+		INNER JOIN Outputs ON Outputs.id = Transcodes.output_id"""))
+	for (inp_vid, inp_sub, inp_metadata, eventid, base_path, transcode_date, iid, oid) in eachrow(transcodes)
+		output_subs = joinpath(base_path, "$eventid.srt")
+		output_meta = joinpath(base_path, "$eventid.json")
+		if !Base.Filesystem.ispath(inp_sub)
+			println("Missing $inp_sub")
+			continue
+		end
+		if !Base.Filesystem.ispath(inp_metadata)
+			println("Missing $inp_metadata")
+			continue
+		end
+		Base.Filesystem.cp(inp_sub, output_subs, force=true)
+		Base.Filesystem.cp(inp_metadata, output_meta, force=true)
+	end
+end
+
+function check_conference(db)
+	#first, identify outputs that haven't been matched to inputs
+	unmatched = DataFrame(DBInterface.execute(db, """
+		SELECT Outputs.title, Outputs.authors, Outputs.track, Outputs.room from Outputs 
+		LEFT JOIN Transcodes ON Transcodes.output_id = Outputs.id
+		WHERE Transcodes.id IS NULL"""))
+	if !isempty(unmatched)
+		println("Unmatched required outputs!")
+		for (title, authors, track, room) in eachrow(unmatched)
+			println("Unmatched: $title by $authors at $track in $room")
+		end
+	end
+	# next, identify inputs which are mapped to outputs that don't correspond to a video 
+	required_inp_files = DataFrame(DBInterface.execute(db, """
+		SELECT Ingests.title, Ingests.event, Ingests.video_file, Ingests.sub_file, Ingests.metadata_file from Ingests 
+		INNER JOIN Transcodes ON Transcodes.ingest_id = Ingests.id"""))
+	for (title, event, vid, sub, meta) in eachrow(required_inp_files)
+		missing_els = []
+		hasmissing = false
+		if !Base.Filesystem.ispath(vid)
+			push!(missing_els, "video")
+			hasmissing = true
+		end
+		if !Base.Filesystem.ispath(sub)
+			push!(missing_els, "subs")
+			hasmissing = true
+		end
+		if !Base.Filesystem.ispath(meta)
+			push!(missing_els, "meta")
+			hasmissing = true
+		end
+		if hasmissing
+			println("Missing $(join(missing_els, ", ")) for $title at $event w/ name $vid")
+		end
+	end
+	# check to see if there are any outstanding transcodes
+	transcodes_to_do = DataFrame(DBInterface.execute(db, """
+		SELECT Transcodes.transcode_date, Ingests.video_file from Transcodes 
+		INNER JOIN Ingests ON Transcodes.ingest_id = Ingests.id"""))
+	for (tcd, ingest_file) in eachrow(transcodes_to_do)
+		if Base.Filesystem.ispath(ingest_file) && (ismissing(tcd) || tcd < Base.Filesystem.mtime(ingest_file))
+			println("Need to do transcode $ingest_file")
+		end
+	end
 end
 
 #=
