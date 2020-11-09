@@ -197,14 +197,14 @@ function process_outstanding_videos(db)
 	done_stmt = SQLite.Stmt(db, "UPDATE Transcodes SET transcode_date=:date WHERE output_id=:oid AND ingest_id=:iid")
 	for (inp_vid, inp_sub, inp_metadata, eventid, base_path, transcode_date, iid, oid) in eachrow(transcodes)
 		output_video = joinpath(base_path, "$eventid.mp4")
-		if !Filesystem.ispath(base_path)
-			Filesystem.mkpath(base_path)
+		if !Base.Filesystem.ispath(base_path)
+			Base.Filesystem.mkpath(base_path)
 		end
-		if !Filesystem.ispath(inp_vid)
+		if !Base.Filesystem.ispath(inp_vid)
 			error("Missing input video $inp_vid, continuing.")
 			continue
 		end
-		inp_mod = Filesystem.mtime(inp_vid)
+		inp_mod = Base.Filesystem.mtime(inp_vid)
 		if !isnothing(transcode_date) && inp_mod <= transcode_date
 			continue
 		end
