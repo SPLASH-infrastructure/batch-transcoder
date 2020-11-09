@@ -215,6 +215,7 @@ function process_outstanding_videos(db)
 		wait(proc)
 		if proc.exitcode != 0
 			error("Errored while processing video $inp_vid with ID $eventid")
+			continue
 		end
 		DBInterface.execute(done_stmt, (date=floor(datetime2unix(now())), oid=oid, iid=iid))
 	end
